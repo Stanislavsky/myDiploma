@@ -5,7 +5,7 @@ from django import forms
 from django.core.exceptions import ValidationError
 from .models import StaffRole
 from django.urls import resolve, reverse
-from django.db.models.signals import post_delete
+from django.db.models.signals import post_delete, post_save
 from django.dispatch import receiver
 from django.db import transaction
 from django.shortcuts import redirect
@@ -33,12 +33,16 @@ class CustomAdminSite(admin.AdminSite):
         
         return False
 
-    def get_app_list(self, request):
+    def get_app_list(self, request, app_label=None):
         """
         Возвращает список приложений, которые должны отображаться в админке
         """
-        app_list = super().get_app_list(request)
+        app_list = super().get_app_list(request, app_label)
         
+        # Если суперпользователь, показываем все приложения
+        if request.user.is_superuser:
+            return app_list
+            
         # Проверяем права доступа пользователя
         if not self.has_permission(request):
             return []
@@ -76,10 +80,78 @@ custom_admin_site = CustomAdminSite(name='staff-admin')
 class CustomUserCreationForm(forms.ModelForm):
     password1 = forms.CharField(label='Пароль', widget=forms.PasswordInput)
     password2 = forms.CharField(label='Подтвердите пароль', widget=forms.PasswordInput)
+    
+    # Role checkboxes
+    is_doctor = forms.BooleanField(label='Врач', required=False)
+    is_admin = forms.BooleanField(label='Системный администратор', required=False)
+    is_support = forms.BooleanField(label='Сопровождающий программы', required=False)
+    
+    # Doctor specific fields
+    gender = forms.ChoiceField(
+        choices=[('male', 'Мужчина'), ('female', 'Женщина')],
+        label='Пол',
+        required=False
+    )
+    birth_date = forms.DateField(label='Дата рождения', required=False)
+    passport_series = forms.CharField(max_length=4, label='Серия паспорта', required=False)
+    passport_number = forms.CharField(max_length=6, label='Номер паспорта', required=False)
+    passport_issued_by = forms.CharField(max_length=100, label='Кем выдан', required=False)
+    workplace = forms.CharField(max_length=255, label='Место работы', required=False)
+    position = forms.CharField(max_length=255, label='Должность', required=False)
 
     class Meta:
         model = User
         fields = ('username', 'email', 'first_name', 'last_name', 'is_staff', 'is_active')
+
+    def __init__(self, *args, **kwargs):
+        self.request = kwargs.pop('request', None)
+        super().__init__(*args, **kwargs)
+        
+        print("Initializing form...")  # Debug print
+        
+        # Получаем роль текущего пользователя
+        if self.request and self.request.user.is_authenticated:
+            print(f"User: {self.request.user.username}")  # Debug print
+            current_user_role = StaffRole.objects.filter(user=self.request.user).first()
+            print(f"Current user role: {current_user_role.role if current_user_role else 'None'}")  # Debug print
+            
+            # Если пользователь не суперпользователь, скрываем некоторые роли
+            if not self.request.user.is_superuser:
+                print("User is not superuser")  # Debug print
+                if current_user_role:
+                    print(f"Processing role: {current_user_role.role}")  # Debug print
+                    if current_user_role.role == 'admin':
+                        print("User is admin, removing support field")  # Debug print
+                        # Админ видит только doctor и admin
+                        del self.fields['is_support']
+                    elif current_user_role.role == 'support':
+                        print("User is support, showing all fields")  # Debug print
+                        # Support видит все роли
+                        pass
+                    else:
+                        print("User has other role, removing all role fields")  # Debug print
+                        # Остальные не видят никаких ролей
+                        del self.fields['is_doctor']
+                        del self.fields['is_admin']
+                        del self.fields['is_support']
+            
+            print(f"Available fields after processing: {list(self.fields.keys())}")  # Debug print
+
+    def clean(self):
+        print("Cleaning form data...")  # Debug print
+        cleaned_data = super().clean()
+        print(f"Cleaned data: {cleaned_data}")  # Debug print
+        
+        # Проверяем, что выбрана только одна роль
+        roles = [
+            cleaned_data.get('is_doctor', False),
+            cleaned_data.get('is_admin', False),
+            cleaned_data.get('is_support', False)
+        ]
+        if sum(roles) > 1:
+            raise ValidationError("Можно выбрать только одну роль")
+        
+        return cleaned_data
 
     def clean_password2(self):
         p1 = self.cleaned_data.get("password1")
@@ -89,19 +161,77 @@ class CustomUserCreationForm(forms.ModelForm):
         return p2
 
     def save(self, commit=True):
-        user = super().save(commit=False)
-        user.set_password(self.cleaned_data["password1"])
-        if commit:
-            user.save()
-        return user
+        print("Starting save method...")  # Debug print
+        try:
+            # Создаем пользователя
+            user = super().save(commit=False)
+            print(f"Created user object: {user}")  # Debug print
+            
+            # Сохраняем дополнительные данные в атрибуты пользователя
+            user.is_doctor = self.cleaned_data.get('is_doctor', False)
+            user.is_admin = self.cleaned_data.get('is_admin', False)
+            user.is_support = self.cleaned_data.get('is_support', False)
+            user.gender = self.cleaned_data.get('gender')
+            user.birth_date = self.cleaned_data.get('birth_date')
+            user.passport_series = self.cleaned_data.get('passport_series')
+            user.passport_number = self.cleaned_data.get('passport_number')
+            user.passport_issued_by = self.cleaned_data.get('passport_issued_by')
+            user.workplace = self.cleaned_data.get('workplace')
+            user.position = self.cleaned_data.get('position')
+            
+            user.set_password(self.cleaned_data["password1"])
+            print("Password set")  # Debug print
+            
+            if commit:
+                print("Saving user...")  # Debug print
+                user.save()
+                print(f"User saved with ID: {user.id}")  # Debug print
+            
+            return user
+        except Exception as e:
+            print(f"Error in save method: {str(e)}")  # Debug print
+            raise
 
 
 class CustomUserChangeForm(forms.ModelForm):
     password = forms.CharField(label="Пароль", widget=forms.PasswordInput, required=False)
+    
+    # Doctor specific fields
+    gender = forms.ChoiceField(
+        choices=[('male', 'Мужчина'), ('female', 'Женщина')],
+        label='Пол',
+        required=False
+    )
+    birth_date = forms.DateField(label='Дата рождения', required=False)
+    passport_series = forms.CharField(max_length=4, label='Серия паспорта', required=False)
+    passport_number = forms.CharField(max_length=6, label='Номер паспорта', required=False)
+    passport_issued_by = forms.CharField(max_length=100, label='Кем выдан', required=False)
+    workplace = forms.CharField(max_length=255, label='Место работы', required=False)
+    position = forms.CharField(max_length=255, label='Должность', required=False)
 
     class Meta:
         model = User
         exclude = ('is_superuser', 'groups', 'user_permissions')
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if self.instance.pk:
+            # Получаем профиль врача, если он существует
+            staff_role = StaffRole.objects.filter(user=self.instance).first()
+            if staff_role and staff_role.role == 'doctor':
+                try:
+                    from doctorProfile.models import DoctorProfile
+                    doctor_profile = DoctorProfile.objects.get(staff_role=staff_role)
+                    # Заполняем поля данными из профиля
+                    self.fields['gender'].initial = doctor_profile.gender
+                    self.fields['birth_date'].initial = doctor_profile.birth_date
+                    self.fields['passport_series'].initial = doctor_profile.passport_series
+                    self.fields['passport_number'].initial = doctor_profile.passport_number
+                    self.fields['passport_issued_by'].initial = doctor_profile.passport_issued_by
+                    self.fields['workplace'].initial = doctor_profile.workplace
+                    self.fields['position'].initial = doctor_profile.position
+                except DoctorProfile.DoesNotExist:
+                    pass
 
     def clean_password(self):
         password = self.cleaned_data.get("password")
@@ -114,8 +244,27 @@ class CustomUserChangeForm(forms.ModelForm):
         password = self.cleaned_data.get("password")
         if password:
             user.set_password(password)
+        
         if commit:
             user.save()
+            # Обновляем профиль врача, если он существует
+            staff_role = StaffRole.objects.filter(user=user).first()
+            if staff_role and staff_role.role == 'doctor':
+                try:
+                    from doctorProfile.models import DoctorProfile
+                    doctor_profile = DoctorProfile.objects.get(staff_role=staff_role)
+                    # Обновляем поля профиля
+                    doctor_profile.gender = self.cleaned_data.get('gender')
+                    doctor_profile.birth_date = self.cleaned_data.get('birth_date')
+                    doctor_profile.passport_series = self.cleaned_data.get('passport_series')
+                    doctor_profile.passport_number = self.cleaned_data.get('passport_number')
+                    doctor_profile.passport_issued_by = self.cleaned_data.get('passport_issued_by')
+                    doctor_profile.workplace = self.cleaned_data.get('workplace')
+                    doctor_profile.position = self.cleaned_data.get('position')
+                    doctor_profile.save()
+                except DoctorProfile.DoesNotExist:
+                    pass
+        
         return user
 
 
@@ -128,12 +277,85 @@ class DoctorAndAdminUserAdmin(admin.ModelAdmin):
     add_form = CustomUserCreationForm
     form = CustomUserChangeForm
 
+    class Media:
+        js = ('admin/js/doctor_fields.js',)
+
     def get_form(self, request, obj=None, **kwargs):
         if obj is None:
             kwargs['form'] = self.add_form
+            kwargs['form'].request = request
         else:
             kwargs['form'] = self.form
         return super().get_form(request, obj, **kwargs)
+
+    def get_fieldsets(self, request, obj=None):
+        if obj is None:  # Add view
+            print("Setting up fieldsets for new user...")  # Debug print
+            
+            # Определяем базовые поля
+            role_fields = ['is_doctor', 'is_admin']
+            
+            # Проверяем роль пользователя
+            if request.user.is_superuser:
+                # Суперпользователь видит все роли
+                role_fields.append('is_support')
+            else:
+                current_user_role = StaffRole.objects.filter(user=request.user).first()
+                if current_user_role:
+                    if current_user_role.role == 'support':
+                        # Support видит все роли
+                        role_fields.append('is_support')
+                    elif current_user_role.role != 'admin':
+                        # Остальные не видят никаких ролей
+                        role_fields = []
+            
+            fieldsets = (
+                (None, {
+                    'fields': ['username', 'password1', 'password2'] + role_fields
+                }),
+                ('Личная информация', {
+                    'fields': ('first_name', 'last_name', 'email')
+                }),
+                ('Права доступа', {
+                    'fields': ('is_active', 'is_staff')
+                }),
+                ('Информация о враче', {
+                    'fields': ('gender', 'birth_date', 'passport_series', 'passport_number', 
+                             'passport_issued_by', 'workplace', 'position'),
+                    'classes': ('doctor-fields',),
+                    'description': 'Заполните эти поля, если создаете пользователя с ролью врача'
+                })
+            )
+            print(f"Fieldsets: {fieldsets}")  # Debug print
+            return fieldsets
+        else:  # Change view
+            # Проверяем, является ли пользователь врачом
+            staff_role = StaffRole.objects.filter(user=obj).first()
+            is_doctor = staff_role and staff_role.role == 'doctor'
+            
+            fieldsets = (
+                (None, {
+                    'fields': ('username', 'password')
+                }),
+                ('Личная информация', {
+                    'fields': ('first_name', 'last_name', 'email')
+                }),
+                ('Права доступа', {
+                    'fields': ('is_active', 'is_staff')
+                }),
+            )
+            
+            # Добавляем поля врача, если пользователь является врачом
+            if is_doctor:
+                fieldsets += (
+                    ('Информация о враче', {
+                        'fields': ('gender', 'birth_date', 'passport_series', 'passport_number', 
+                                 'passport_issued_by', 'workplace', 'position'),
+                        'classes': ('doctor-fields',),
+                    }),
+                )
+            
+            return fieldsets
 
     def get_role(self, obj):
         staff_role = StaffRole.objects.filter(user=obj).first()
@@ -143,14 +365,18 @@ class DoctorAndAdminUserAdmin(admin.ModelAdmin):
 
     def get_queryset(self, request):
         qs = super().get_queryset(request)
+        if request.user.is_superuser:
+            return qs
         current_user_role = StaffRole.objects.filter(user=request.user).first()
-        
         if current_user_role and current_user_role.role == 'support':
             return qs.filter(staffrole__role__in=['admin', 'doctor', 'support'])
         else:
             return qs.filter(staffrole__role__in=['admin', 'doctor'])
 
     def has_module_permission(self, request):
+        # Суперпользователь всегда имеет доступ
+        if request.user.is_superuser:
+            return True
         if not request.user.is_authenticated or not request.user.is_staff:
             return False
         user_role = StaffRole.objects.filter(user=request.user).first()
@@ -197,15 +423,55 @@ class RoleFilter(admin.SimpleListFilter):
         return queryset
 
 
+class UserInline(admin.StackedInline):
+    model = User
+    fields = ('username', 'email', 'first_name', 'last_name', 'is_active', 'is_staff')
+    readonly_fields = ('username', 'email', 'first_name', 'last_name', 'is_active', 'is_staff')
+    can_delete = False
+    max_num = 0
+    extra = 0
+
 class StaffRoleAdmin(admin.ModelAdmin):
-    list_display = ('user', 'role')
-    search_fields = ('user__username',)
+    list_display = ('user', 'role', 'get_username', 'get_email', 'get_first_name', 'get_last_name', 'get_is_active', 'get_is_staff')
+    search_fields = ('user__username', 'user__email', 'user__first_name', 'user__last_name')
     list_filter = (RoleFilter,)
+
+    def get_username(self, obj):
+        return obj.user.username
+    get_username.short_description = 'Имя пользователя'
+    get_username.admin_order_field = 'user__username'
+
+    def get_email(self, obj):
+        return obj.user.email
+    get_email.short_description = 'Email'
+    get_email.admin_order_field = 'user__email'
+
+    def get_first_name(self, obj):
+        return obj.user.first_name
+    get_first_name.short_description = 'Имя'
+    get_first_name.admin_order_field = 'user__first_name'
+
+    def get_last_name(self, obj):
+        return obj.user.last_name
+    get_last_name.short_description = 'Фамилия'
+    get_last_name.admin_order_field = 'user__last_name'
+
+    def get_is_active(self, obj):
+        return obj.user.is_active
+    get_is_active.short_description = 'Активен'
+    get_is_active.boolean = True
+    get_is_active.admin_order_field = 'user__is_active'
+
+    def get_is_staff(self, obj):
+        return obj.user.is_staff
+    get_is_staff.short_description = 'Персонал'
+    get_is_staff.boolean = True
+    get_is_staff.admin_order_field = 'user__is_staff'
 
     def get_queryset(self, request):
         qs = super().get_queryset(request)
-        # Если суперпользователь и стандартная админка — показываем всё
-        if request.user.is_superuser and request.path.startswith('/admin/'):
+        # Если суперпользователь — показываем всё
+        if request.user.is_superuser:
             return qs
         current_user_role = StaffRole.objects.filter(user=request.user).first()
         if current_user_role and current_user_role.role == 'support':
@@ -214,6 +480,9 @@ class StaffRoleAdmin(admin.ModelAdmin):
             return qs.filter(role__in=['admin', 'doctor', '']).exclude(user__is_superuser=True)
 
     def has_module_permission(self, request):
+        # Суперпользователь всегда имеет доступ
+        if request.user.is_superuser:
+            return True
         if not request.user.is_authenticated or not request.user.is_staff:
             return False
         user_role = StaffRole.objects.filter(user=request.user).first()
@@ -233,8 +502,8 @@ class StaffRoleAdmin(admin.ModelAdmin):
 
     def formfield_for_dbfield(self, db_field, request, **kwargs):
         if db_field.name == "user":
-            # Если суперпользователь и стандартная админка — показываем всех пользователей
-            if request.user.is_superuser and request.path.startswith('/admin/'):
+            # Если суперпользователь — показываем всех пользователей
+            if request.user.is_superuser:
                 kwargs["queryset"] = User.objects.all().order_by('username')
             else:
                 current_user_role = StaffRole.objects.filter(user=request.user).first()
@@ -252,7 +521,7 @@ class StaffRoleAdmin(admin.ModelAdmin):
 
     def formfield_for_choice_field(self, db_field, request, **kwargs):
         if db_field.name == "role":
-            # Если суперпользователь и стандартная админка — показываем все роли
+            # Если суперпользователь — показываем все роли
             if request.user.is_superuser:
                 kwargs['choices'] = [
                     ('', '---------'),
@@ -302,7 +571,7 @@ class StaffRoleAdmin(admin.ModelAdmin):
                 obj.user.delete()
 
 
-# --- Регистрация в кастомном админ-сайте ---
+
 # Регистрируем модели в кастомной админке
 custom_admin_site.register(User, DoctorAndAdminUserAdmin)
 custom_admin_site.register(StaffRole, StaffRoleAdmin)
@@ -314,3 +583,39 @@ def delete_user_on_staff_role_delete(sender, instance, **kwargs):
             User.objects.filter(id=instance.user_id).delete()
         except Exception:
             pass
+
+@receiver(post_save, sender=User)
+def create_staff_role(sender, instance, created, **kwargs):
+    if created:
+        print(f"Creating StaffRole for user {instance.username}")  # Debug print
+        
+        # Определяем роль пользователя
+        role = ''
+        if getattr(instance, 'is_doctor', False):
+            role = 'doctor'
+        elif getattr(instance, 'is_admin', False):
+            role = 'admin'
+        elif getattr(instance, 'is_support', False):
+            role = 'support'
+            
+        print(f"Selected role: {role}")  # Debug print
+        
+        # Создаем StaffRole
+        staff_role = StaffRole.objects.create(user=instance, role=role)
+        print(f"Created StaffRole: {staff_role}")  # Debug print
+        
+        # Если это врач, создаем DoctorProfile
+        if role == 'doctor':
+            print("Creating DoctorProfile...")  # Debug print
+            from doctorProfile.models import DoctorProfile
+            doctor_profile = DoctorProfile.objects.create(
+                staff_role=staff_role,
+                gender=getattr(instance, 'gender', None),
+                birth_date=getattr(instance, 'birth_date', None),
+                passport_series=getattr(instance, 'passport_series', None),
+                passport_number=getattr(instance, 'passport_number', None),
+                passport_issued_by=getattr(instance, 'passport_issued_by', None),
+                workplace=getattr(instance, 'workplace', None),
+                position=getattr(instance, 'position', None)
+            )
+            print(f"Created DoctorProfile: {doctor_profile}")  # Debug print
