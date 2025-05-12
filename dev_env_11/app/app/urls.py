@@ -9,6 +9,9 @@ from django.http import JsonResponse, HttpResponse
 from django.views.generic import TemplateView
 from django.conf import settings
 from django.conf.urls.static import static
+import logging
+
+logger = logging.getLogger(__name__)
 
 # --- Только суперпользователь может попасть в стандартную админку Django ---
 class SuperuserOnlyAdminSite(admin.AdminSite):
@@ -28,6 +31,12 @@ admin.site.register(StaffRole, StaffRoleAdmin)
 # Представление для получения CSRF токена
 @ensure_csrf_cookie
 def get_csrf_token(request):
+    logger.info('=== CSRF Token Request ===')
+    logger.info(f'User: {request.user.username if request.user.is_authenticated else "Anonymous"}')
+    logger.info(f'Session ID: {request.session.session_key}')
+    logger.info(f'CSRF Cookie: {request.COOKIES.get("csrftoken", "not set")}')
+    logger.info(f'Request Headers: {dict(request.headers)}')
+    logger.info('=== End CSRF Token Request ===')
     return HttpResponse()
 
 urlpatterns = [
@@ -37,4 +46,11 @@ urlpatterns = [
     path('api/main/', include('main.urls')),
     path('api/doctor-profile/', include('doctorProfile.urls')),  # маршруты для doctorProfile
     path('api/csrf-token/', get_csrf_token, name='csrf-token'),  # маршрут для получения CSRF токена
-] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT, show_indexes=True) + static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
+    path('api/chat/', include('chatDoctorAndAdmin.urls')),
+]
+
+# Добавляем обработку медиафайлов в режиме разработки
+if settings.DEBUG:
+    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+    # Добавляем отдельный URL для медиафайлов чата
+    urlpatterns += static('/chat_media/', document_root=settings.CHAT_MEDIA_ROOT)

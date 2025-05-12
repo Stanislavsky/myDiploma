@@ -13,9 +13,11 @@ function Login() {
   useEffect(() => {
     const getCSRFToken = async () => {
       try {
-        await api.get('/api/auth/csrf/');
+        console.log('Получение CSRF токена...');
+        const response = await api.get('/api/csrf-token/');
+        console.log('CSRF токен получен:', response.data);
       } catch (error) {
-        console.error('Error getting CSRF token:', error);
+        console.error('Ошибка при получении CSRF токена:', error);
       }
     };
     getCSRFToken();
@@ -26,23 +28,48 @@ function Login() {
     setError('');
     
     try {
+      console.log('Попытка входа...');
       const response = await api.post('/api/auth/login/', { 
         username, 
         password 
       });
       
+      console.log('Ответ сервера при входе:', response.data);
+      
       if (response.data.user) {
+        console.log('Вход успешен, сохраняем учетные данные...');
+        // Сохраняем учетные данные в localStorage
+        localStorage.setItem('username', username);
+        localStorage.setItem('password', password);
+        
+        // Проверяем, что данные сохранились
+        const savedUsername = localStorage.getItem('username');
+        const savedPassword = localStorage.getItem('password');
+        console.log('Сохраненные учетные данные:', {
+          username: savedUsername,
+          password: savedPassword ? '***' : null
+        });
+        
         // Проверяем аутентификацию после входа
+        console.log('Проверка аутентификации...');
         const authCheck = await api.get('/api/auth/check/');
+        console.log('Результат проверки аутентификации:', authCheck.data);
+        
         if (authCheck.data.user) {
+          console.log('Аутентификация подтверждена, перенаправление на главную...');
           navigate('/', { replace: true });
         } else {
+          console.error('Ошибка аутентификации: нет данных пользователя в ответе');
           setError('Ошибка аутентификации');
         }
       }
     } catch (error) {
+      console.error('Ошибка при входе:', error);
+      if (error.response) {
+        console.error('Данные ответа сервера:', error.response.data);
+        console.error('Статус ответа:', error.response.status);
+      }
       setError('Неверное имя пользователя или пароль');
-      console.error('Login error:', error);
     }
   };
 

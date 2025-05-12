@@ -2,11 +2,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import styles from './Chat.module.css'; // Подключаем стили
 import { FaTimes, FaPaperclip, FaCheck } from 'react-icons/fa';
-import axios from 'axios';
-
-const api = axios.create({
-  withCredentials: true
-});
+import api from '../../api/api';  // Импортируем настроенный экземпляр axios
 
 export default function Chat({ doctorName, openedAt, userId, onClose, onRedirect, onQuestionDeleted }) {
   const [messages, setMessages] = useState([]); // Состояние для хранения сообщений
@@ -17,6 +13,10 @@ export default function Chat({ doctorName, openedAt, userId, onClose, onRedirect
   const [showAdminTab, setShowAdminTab] = useState(false); // Состояние для отображения вкладки сопровождающего
   const [selectedImage, setSelectedImage] = useState(null); // Состояние для выбранного изображения
   const [isRedirected, setIsRedirected] = useState(false); // Состояние для отслеживания перенаправления
+  const [socket, setSocket] = useState(null);
+  const [isConnecting, setIsConnecting] = useState(false);
+  const [connectionError, setConnectionError] = useState(null);
+  const reconnectTimeoutRef = useRef(null);
   const fileInputRef = useRef(null); // Ссылка на скрытый input для загрузки файлов
   const messagesEndRef = useRef(null); // Ссылка на конец списка сообщений
   const [file, setFile] = useState(null);
@@ -33,6 +33,166 @@ export default function Chat({ doctorName, openedAt, userId, onClose, onRedirect
     }
   }, [userId]);
 
+  // Добавляем функцию для определения отправителя
+  const determineSender = (messageData, currentUserId) => {
+    // Если это сообщение из WebSocket
+    if (messageData.message_type === undefined) {
+      return messageData.user === currentUserId ? 'admin' : 'doctor';
+    }
+    // Если это сообщение из истории
+    return messageData.message_type === 'admin_to_doctor' ? 'admin' : 'doctor';
+  };
+
+  // Определяем функцию connectWebSocket
+  const connectWebSocket = async () => {
+    try {
+      setIsConnecting(true);
+      setConnectionError(null);
+
+      const username = localStorage.getItem('username');
+      const password = localStorage.getItem('password');
+      
+      if (!username || !password) {
+        throw new Error('Отсутствуют учетные данные в localStorage');
+      }
+      
+      const response = await api.post('/api/auth/token/', {
+        username: username,
+        password: password
+      }, {
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (!response.data || !response.data.token) {
+        throw new Error('Неверный формат ответа от сервера');
+      }
+      
+      const token = response.data.token;
+      const ws_scheme = window.location.protocol === "https:" ? "wss" : "ws";
+      const ws_path = `${ws_scheme}://localhost:8000/ws/chat/?token=${token}`;
+      
+      const newSocket = new WebSocket(ws_path);
+
+      newSocket.onopen = () => {
+        console.log('WebSocket соединение успешно установлено');
+        setSocket(newSocket);
+        setIsConnecting(false);
+        setConnectionError(null);
+      };
+
+      newSocket.onmessage = (event) => {
+        console.log('Получено сообщение через WebSocket:', event.data);
+        try {
+          const data = JSON.parse(event.data);
+          
+          if (data.image && messages.some(msg => 
+            msg.image === data.image && 
+            msg.timestamp === new Date(data.timestamp).toISOString()
+          )) {
+            console.log('Пропуск дубликата сообщения с изображением');
+            return;
+          }
+
+          const newMessage = {
+            text: data.message,
+            user: data.user,
+            timestamp: new Date().toISOString(),
+            image: data.image,
+            role: data.role,
+            message_type: data.message_type || (data.user === userId ? 'admin_to_doctor' : 'doctor_to_admin'),
+            sender: determineSender(data, userId)
+          };
+          
+          setMessages(prevMessages => [...prevMessages, newMessage]);
+        } catch (error) {
+          console.error('Ошибка при обработке WebSocket сообщения:', error);
+        }
+      };
+
+      newSocket.onerror = (error) => {
+        console.error('Ошибка WebSocket:', error);
+        setConnectionError('Ошибка соединения с сервером');
+        setIsConnecting(false);
+      };
+
+      newSocket.onclose = () => {
+        console.log('WebSocket соединение закрыто');
+        setSocket(null);
+        setIsConnecting(false);
+        
+        setTimeout(() => {
+          connectWebSocket();
+        }, 3000);
+      };
+
+    } catch (error) {
+      console.error('Ошибка при подключении к WebSocket:', error);
+      setConnectionError(error.message || 'Ошибка подключения к серверу');
+      setIsConnecting(false);
+      
+      setTimeout(() => {
+        connectWebSocket();
+      }, 3000);
+    }
+  };
+
+  // Инициализация WebSocket соединения
+  useEffect(() => {
+    connectWebSocket();
+
+    return () => {
+      if (socket && socket instanceof WebSocket) {
+        socket.close();
+      }
+    };
+  }, []);
+
+  // Обновляем загрузку истории сообщений
+  useEffect(() => {
+    const fetchMessages = async () => {
+      try {
+        const response = await api.get('/api/chat/messages/');
+        if (response.data && response.data.messages) {
+          console.log('Полученные сообщения с сервера:', response.data.messages);
+          const formattedMessages = response.data.messages.map(msg => {
+            const formattedMessage = {
+              text: msg.content,
+              user: msg.user,
+              timestamp: msg.timestamp,
+              image: msg.image,
+              role: msg.role,
+              message_type: msg.message_type,
+              sender: determineSender(msg, userId)
+            };
+            
+            console.log('Обработка сообщения из истории:', {
+              messageId: msg.id,
+              userId: msg.user,
+              currentUserId: userId,
+              messageType: msg.message_type,
+              sender: formattedMessage.sender,
+              role: msg.role
+            });
+
+            return formattedMessage;
+          });
+          console.log('Отформатированные сообщения из истории:', formattedMessages);
+          setMessages(formattedMessages);
+        } else {
+          console.error('Неверный формат ответа от сервера:', response.data);
+          setMessages([]);
+        }
+      } catch (error) {
+        console.error('Ошибка при загрузке сообщений:', error);
+        setMessages([]);
+      }
+    };
+
+    fetchMessages();
+  }, [userId]);
+
   // Функция для прокрутки вниз
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -43,16 +203,77 @@ export default function Chat({ doctorName, openedAt, userId, onClose, onRedirect
     scrollToBottom();
   }, [messages]);
 
-  const handleSendMessage = () => {
-    if (message.trim() !== '' || selectedImage) {
-      const newMessage = {
-        text: message,
-        sender: 'admin',
-        image: selectedImage
-      };
-      setMessages([...messages, newMessage]);
+  const handleSendMessage = async () => {
+    if (!socket || socket.readyState !== WebSocket.OPEN) {
+      console.error('WebSocket не подключен');
+      if (connectionError) {
+        alert(`Ошибка соединения: ${connectionError}`);
+      } else if (isConnecting) {
+        alert('Идет подключение к серверу, пожалуйста, подождите...');
+      } else {
+        alert('Нет соединения с сервером. Попытка переподключения...');
+        connectWebSocket();
+      }
+      return;
+    }
+
+    try {
+      if (selectedImage) {
+        // Создаем FormData для отправки изображения
+        const formData = new FormData();
+        const blob = await fetch(selectedImage).then(r => r.blob());
+        formData.append('image', blob, 'image.png');
+        formData.append('user', userId);
+
+        // Отправляем изображение через API
+        const response = await api.post('/api/chat/upload-image/', formData, {
+          headers: {
+            'Content-Type': 'multipart/form-data',
+          },
+        });
+
+        if (response.data && response.data.message) {
+          // Создаем временное сообщение для немедленного отображения
+          const tempMessage = {
+            text: response.data.message,
+            user: userId,
+            timestamp: new Date().toISOString(),
+            image: response.data.image_url,
+            role: 'admin',
+            message_type: 'admin_to_doctor',
+            sender: 'admin'
+          };
+
+          // Немедленно добавляем сообщение в состояние
+          setMessages(prevMessages => [...prevMessages, tempMessage]);
+
+          // Отправляем сообщение через WebSocket для синхронизации
+          const messageData = {
+            message: response.data.message,
+            user: userId,
+            image: response.data.image_url,
+            message_type: 'admin_to_doctor'
+          };
+          console.log('Отправка сообщения с изображением через WebSocket:', messageData);
+          socket.send(JSON.stringify(messageData));
+        }
+      } else if (message.trim() !== '') {
+        // Отправляем текстовое сообщение через WebSocket
+        const messageData = {
+          message: message.trim(),
+          user: userId,
+          message_type: 'admin_to_doctor'
+        };
+        console.log('Отправка текстового сообщения:', messageData);
+        socket.send(JSON.stringify(messageData));
+      }
+
+      // Очищаем поля ввода
       setMessage('');
       setSelectedImage(null);
+    } catch (error) {
+      console.error('Ошибка при отправке сообщения:', error);
+      alert('Не удалось отправить сообщение. Пожалуйста, попробуйте еще раз.');
     }
   };
 
@@ -122,21 +343,26 @@ export default function Chat({ doctorName, openedAt, userId, onClose, onRedirect
 
   const handleConfirmSolve = async () => {
     try {
-      // Получаем CSRF токен из cookie
-      const csrfToken = document.cookie.split('; ')
-        .find(row => row.startsWith('csrftoken='))
-        ?.split('=')[1];
+      // Сначала удаляем все сообщения чата
+      await api.delete(`/api/chat/delete-messages/${userId}/`);
 
-      await api.delete(`/api/doctor-profile/questions/${userId}/`, {
-        headers: {
-          'X-CSRFToken': csrfToken,
-          'Content-Type': 'application/json',
-        },
-        withCredentials: true
-      });
+      // Затем удаляем сам вопрос
+      await api.delete(`/api/doctor-profile/questions/${userId}/`);
+      
+      // Отправляем событие удаления чата через WebSocket
+      if (socket && socket.readyState === WebSocket.OPEN) {
+        const deleteEvent = {
+          type: 'chat_deleted',
+          userId: userId,
+          timestamp: new Date().toISOString(),
+          deleteMessages: true // Флаг, указывающий что нужно удалить все сообщения
+        };
+        socket.send(JSON.stringify(deleteEvent));
+      }
       
       setIsTaskSolved(true);
       setShowConfirmModal(false);
+      setMessages([]); // Очищаем сообщения локально
       
       // Вызываем функцию для удаления вопроса из списка
       if (onQuestionDeleted) {
@@ -148,8 +374,12 @@ export default function Chat({ doctorName, openedAt, userId, onClose, onRedirect
         onClose();
       }, 1000);
     } catch (error) {
-      console.error('Ошибка при удалении вопроса:', error);
-      alert('Не удалось удалить вопрос. Пожалуйста, попробуйте еще раз.');
+      console.error('Ошибка при удалении чата:', error);
+      if (error.response) {
+        console.error('Статус ответа:', error.response.status);
+        console.error('Данные ответа:', error.response.data);
+      }
+      alert('Не удалось удалить чат. Пожалуйста, попробуйте еще раз.');
     }
   };
 
@@ -160,6 +390,8 @@ export default function Chat({ doctorName, openedAt, userId, onClose, onRedirect
           <h3>Чат с врачом: {doctorName}</h3>
           {isTaskSolved && <span className={styles.solvedBadge}>Задача решена</span>}
           {isRedirected && <span className={styles.redirectedBadge}>Перенаправлен</span>}
+          {isConnecting && <span className={styles.connectingBadge}>Подключение...</span>}
+          {connectionError && <span className={styles.errorBadge}>{connectionError}</span>}
         </div>
         <div className={styles.headerRight}>
           {!isTaskSolved && (
@@ -193,48 +425,76 @@ export default function Chat({ doctorName, openedAt, userId, onClose, onRedirect
             <p>Чат пустой. Начните диалог</p>
           </div>
         ) : (
-          messages.map((msg, index) => (
-            <div key={index} className={msg.sender === 'admin' ? styles.adminMessage : styles.doctorMessage}>
-              {msg.image && (
-                <div 
-                  className={styles.messageImageContainer}
-                  onDoubleClick={() => handleImageDoubleClick(msg.image)}
-                >
-                  <img src={msg.image} alt="Отправленное изображение" className={styles.messageImage} />
-                  <div className={styles.imageHint}>Дважды кликните для скачивания</div>
+          messages.map((msg, index) => {
+            console.log('Рендеринг сообщения:', {
+              messageId: msg.id,
+              userId: msg.user,
+              currentUserId: userId,
+              messageType: msg.message_type,
+              sender: msg.sender,
+              role: msg.role
+            });
+            return (
+              <div 
+                key={index} 
+                className={`${styles.message} ${
+                  msg.sender === 'admin' ? styles.adminMessage : styles.doctorMessage
+                }`}
+              >
+                <div className={styles.messageHeader}>
+                  <div className={styles.senderInfo}>
+                    <span className={styles.senderLabel}>
+                      {msg.sender === 'admin' ? 'Администратор' : 'Врач'}
+                    </span>
+                    <span className={styles.sender}>
+                      {msg.sender === 'admin' ? 'Вы' : doctorName}
+                    </span>
+                  </div>
+                  <span className={styles.timestamp}>
+                    {new Date(msg.timestamp).toLocaleTimeString()}
+                  </span>
                 </div>
-              )}
-              {msg.text && <p>{msg.text}</p>}
-            </div>
-          ))
+                {msg.image && (
+                  <div 
+                    className={styles.messageImageContainer}
+                    onDoubleClick={() => handleImageDoubleClick(msg.image)}
+                  >
+                    <img src={msg.image} alt="Отправленное изображение" className={styles.messageImage} />
+                    <div className={styles.imageHint}>Дважды кликните для скачивания</div>
+                  </div>
+                )}
+                {msg.text && <p className={styles.messageText}>{msg.text}</p>}
+              </div>
+            );
+          })
         )}
         <div ref={messagesEndRef} />
       </div>
 
       <div className={styles.inputContainer}>
         {selectedImage && (
-          <div 
-            className={styles.selectedImageContainer}
-            onDoubleClick={() => handleImageDoubleClick(selectedImage)}
-          >
+          <div className={styles.selectedImageContainer}>
             <img src={selectedImage} alt="Выбранное изображение" className={styles.selectedImage} />
-            <div className={styles.imageHint}>Дважды кликните для скачивания</div>
             <button onClick={removeSelectedImage} className={styles.removeImageButton}>
-              ×
+              <FaTimes />
             </button>
           </div>
         )}
-        <button 
-          onClick={() => fileInputRef.current.click()} 
-          className={styles.uploadButton}
-          title="Прикрепить изображение"
-        >
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path d="M19 13V19H5V13H3V19C3 20.1 3.9 21 5 21H19C20.1 21 21 20.1 21 19V13H19Z" fill="currentColor"/>
-            <path d="M12 3L8 7H11V15H13V7H16L12 3Z" fill="currentColor"/>
-          </svg>
-        </button>
         <div className={styles.inputRow}>
+          <button 
+            onClick={() => fileInputRef.current.click()} 
+            className={styles.uploadButton}
+            title="Прикрепить изображение"
+          >
+            <FaPaperclip />
+          </button>
+          <input
+            type="file"
+            ref={fileInputRef}
+            onChange={handleImageSelect}
+            accept="image/*"
+            style={{ display: 'none' }}
+          />
           <textarea
             value={message}
             onChange={(e) => setMessage(e.target.value)}
@@ -250,13 +510,6 @@ export default function Chat({ doctorName, openedAt, userId, onClose, onRedirect
             Отправить
           </button>
         </div>
-        <input
-          type="file"
-          ref={fileInputRef}
-          onChange={handleImageSelect}
-          accept="image/*"
-          style={{ display: 'none' }}
-        />
       </div>
 
       {onRedirect && !isRedirected && (
@@ -273,21 +526,15 @@ export default function Chat({ doctorName, openedAt, userId, onClose, onRedirect
 
       {/* Модальное окно подтверждения */}
       {showConfirmModal && (
-        <div className={styles.overlay}>
+        <div className={styles.modalOverlay}>
           <div className={styles.confirmModal}>
             <h3>Подтверждение</h3>
-            <p>Вы уверены, что хотите отметить этот вопрос как решенный и удалить его?</p>
+            <p>Вы уверены, что задача решена?</p>
             <div className={styles.confirmButtons}>
-              <button 
-                className={styles.confirmButton}
-                onClick={handleConfirmSolve}
-              >
-                Да, удалить
+              <button onClick={handleConfirmSolve} className={styles.confirmButton}>
+                <FaCheck style={{marginRight: '8px'}} /> Да
               </button>
-              <button 
-                className={styles.cancelButton}
-                onClick={() => setShowConfirmModal(false)}
-              >
+              <button onClick={() => setShowConfirmModal(false)} className={styles.cancelButton}>
                 Отмена
               </button>
             </div>

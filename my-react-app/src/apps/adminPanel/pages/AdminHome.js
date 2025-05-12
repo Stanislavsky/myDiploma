@@ -6,7 +6,7 @@ import { FaBell } from 'react-icons/fa';
 import styles from '../AdminPanel.module.css';
 import axios from 'axios';
 
-// Создаем экземпляр axios с базовыми настройками
+
 const api = axios.create({
   withCredentials: true
 });

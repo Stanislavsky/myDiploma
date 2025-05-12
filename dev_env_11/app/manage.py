@@ -2,6 +2,7 @@
 """Django's command-line utility for administrative tasks."""
 import os
 import sys
+import django
 
 
 def main():
@@ -15,6 +16,13 @@ def main():
             "available on your PYTHONPATH environment variable? Did you "
             "forget to activate a virtual environment?"
         ) from exc
+
+    # Проверяем, запускается ли сервер через runserver
+    if len(sys.argv) > 1 and sys.argv[1] == 'runserver':
+        print("ВНИМАНИЕ: Для работы WebSocket рекомендуется использовать Daphne или Uvicorn")
+        print("Установите Daphne: pip install daphne")
+        print("Запустите сервер: daphne -b 0.0.0.0 -p 8000 app.asgi:application")
+
     execute_from_command_line(sys.argv)
 
 

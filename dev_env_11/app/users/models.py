@@ -41,6 +41,7 @@ def create_staff_role(sender, instance, created, **kwargs):
     """
     if created:
         print(f"Creating StaffRole for user {instance.username}")  # Debug print
+        print(f"User attributes: is_doctor={getattr(instance, 'is_doctor', False)}, is_admin={getattr(instance, 'is_admin', False)}, is_support={getattr(instance, 'is_support', False)}")  # Debug print
         
         # Определяем роль пользователя
         role = ''
@@ -60,22 +61,24 @@ def create_staff_role(sender, instance, created, **kwargs):
                 staff_role.role = role
                 staff_role.save()
                 print(f"Created StaffRole: {staff_role}")  # Debug print
+            else:
+                print(f"StaffRole already exists: {staff_role}")  # Debug print
                 
-                # Если это врач, создаем DoctorProfile
-                if role == 'doctor':
-                    print("Creating DoctorProfile...")  # Debug print
-                    from doctorProfile.models import DoctorProfile
-                    doctor_profile = DoctorProfile.objects.create(
-                        staff_role=staff_role,
-                        gender=getattr(instance, 'gender', None),
-                        birth_date=getattr(instance, 'birth_date', None),
-                        passport_series=getattr(instance, 'passport_series', None),
-                        passport_number=getattr(instance, 'passport_number', None),
-                        passport_issued_by=getattr(instance, 'passport_issued_by', None),
-                        workplace=getattr(instance, 'workplace', None),
-                        position=getattr(instance, 'position', None)
-                    )
-                    print(f"Created DoctorProfile: {doctor_profile}")  # Debug print
+            # Если это врач, создаем DoctorProfile
+            if role == 'doctor':
+                print("Creating DoctorProfile...")  # Debug print
+                from doctorProfile.models import DoctorProfile
+                doctor_profile = DoctorProfile.objects.create(
+                    staff_role=staff_role,
+                    gender=getattr(instance, 'gender', None),
+                    birth_date=getattr(instance, 'birth_date', None),
+                    passport_series=getattr(instance, 'passport_series', None),
+                    passport_number=getattr(instance, 'passport_number', None),
+                    passport_issued_by=getattr(instance, 'passport_issued_by', None),
+                    workplace=getattr(instance, 'workplace', None),
+                    position=getattr(instance, 'position', None)
+                )
+                print(f"Created DoctorProfile: {doctor_profile}")  # Debug print
             
         except Exception as e:
-            print(f"Error creating StaffRole: {e}")
+            print(f"Error creating StaffRole: {e}")  # Debug print

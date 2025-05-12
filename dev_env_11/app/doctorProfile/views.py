@@ -4,6 +4,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from .models import DoctorProfile, Question
 from .serializers import DoctorProfileSerializer, QuestionSerializer
+from doctorProfile import serializers
 
 # Create your views here.
 

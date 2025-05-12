@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import './MainWindow.css';
 import HelpModal from './HelpModal/HelpModal';
 import ConfirmModal from './ConfirmModal/ConfirmModal';
+import DoctorChat from './DoctorChat/DoctorChat';
 import api from '../api/api';
 import { useNavigate } from 'react-router-dom';
 import { Link } from 'react-router-dom';
@@ -13,15 +14,34 @@ const MainWindow = ({ title, children }) => {
   const [username, setUsername] = useState('');
   const [isAdmin, setIsAdmin] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [userId, setUserId] = useState(null);
+  const [chatExists, setChatExists] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
     const fetchUser = async () => {
       try {
         const response = await api.get('/api/auth/check/');
+        console.log('Полные данные пользователя:', response.data);
         if (response.data.user) {
-          setUsername(response.data.user.username);
-          setIsAdmin(response.data.user.is_staff || false);
+          const userData = response.data.user;
+          console.log('Данные пользователя для отображения чата:', {
+            username: userData.username,
+            isAdmin: userData.is_admin,
+            userId: userData.id,
+            role: userData.role,
+            isDoctor: userData.is_doctor
+          });
+          
+          setUsername(userData.username);
+          setIsAdmin(userData.is_admin || false);
+          setUserId(userData.id);
+          
+          // Если пользователь не админ, сразу проверяем существование чата
+          if (!userData.is_admin && userData.id) {
+            console.log('Запуск начальной проверки чата для пользователя:', userData.id);
+            checkChatExists();
+          }
         }
       } catch (error) {
         console.error('Error fetching user data:', error);
@@ -32,6 +52,54 @@ const MainWindow = ({ title, children }) => {
     fetchUser();
   }, []);
 
+  const checkChatExists = async () => {
+    if (!userId || isAdmin) {
+      console.log('Пропуск проверки чата:', { userId, isAdmin });
+      setChatExists(false);
+      return;
+    }
+    
+    console.log('Проверка существования чата для пользователя:', userId);
+    try {
+      const response = await api.get(`/api/chat/check-question/${userId}/`);
+      console.log('Ответ сервера о существовании чата:', response.data);
+      
+      if (response.data.error) {
+        console.error('Ошибка от сервера:', response.data.error);
+        setChatExists(false);
+        return;
+      }
+      
+      const exists = Boolean(response.data.exists);
+      const messageCount = response.data.message_count || 0;
+      console.log('Чат существует:', exists, 'количество сообщений:', messageCount);
+      
+      setChatExists(exists);
+      
+      if (exists) {
+        console.log('Чат найден, отображаем компонент DoctorChat');
+      } else {
+        console.log('Чат не найден, скрываем компонент DoctorChat');
+      }
+    } catch (error) {
+      console.error('Ошибка при проверке существования чата:', error);
+      setChatExists(false);
+    }
+  };
+
+  useEffect(() => {
+    console.log('Эффект проверки чата сработал:', { 
+      userId, 
+      isAdmin, 
+      currentChatExists: chatExists,
+      shouldCheckChat: !isAdmin && userId 
+    });
+    
+    if (!isAdmin && userId) {
+      checkChatExists();
+    }
+  }, [userId, isAdmin]);
+
   const handleLogout = async () => {
     try {
       await api.post('/api/auth/logout/');
@@ -39,6 +107,9 @@ const MainWindow = ({ title, children }) => {
       document.cookie.split(";").forEach(function(c) { 
         document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/"); 
       });
+      // Очищаем localStorage
+      localStorage.removeItem('username');
+      localStorage.removeItem('password');
       // Перенаправляем на страницу входа
       navigate('/login');
     } catch (error) {
@@ -50,8 +121,14 @@ const MainWindow = ({ title, children }) => {
     setIsHelpModalOpen(true);
   };
 
-  const closeHelpModal = () => {
+  const handleHelpModalClose = () => {
+    console.log('Закрытие модального окна помощи');
     setIsHelpModalOpen(false);
+    // Проверяем существование чата после закрытия модального окна
+    if (userId && !isAdmin) {
+      console.log('Запуск проверки чата после закрытия модального окна');
+      checkChatExists();
+    }
   };
 
   const openLogoutModal = () => {
@@ -121,7 +198,7 @@ const MainWindow = ({ title, children }) => {
           </div>
         )}
       </div>
-      {isHelpModalOpen && <HelpModal onClose={closeHelpModal} />}
+      {isHelpModalOpen && <HelpModal onClose={handleHelpModalClose} />}
       <ConfirmModal
         isOpen={isLogoutModalOpen}
         onClose={closeLogoutModal}
@@ -129,6 +206,29 @@ const MainWindow = ({ title, children }) => {
         title="Подтверждение выхода"
         message="Вы уверены, что хотите выйти из системы?"
       />
+      {console.log('Рендер MainWindow:', { 
+        isAdmin, 
+        userId, 
+        chatExists, 
+        chatExistsType: typeof chatExists,
+        shouldRenderChat: !isAdmin && userId && chatExists,
+        conditions: {
+          notAdmin: !isAdmin,
+          hasUserId: Boolean(userId),
+          chatExists: chatExists
+        }
+      })}
+      {!isAdmin && userId && chatExists && (
+        <div style={{ 
+          position: 'fixed', 
+          bottom: '20px', 
+          right: '20px', 
+          zIndex: 1000,
+          display: 'block' // Явно указываем display
+        }}>
+          <DoctorChat userId={userId} />
+        </div>
+      )}
     </div>
   );
 };

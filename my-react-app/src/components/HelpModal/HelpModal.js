@@ -15,7 +15,7 @@ const HelpModal = ({ onClose }) => {
   const [message, setMessage] = useState('');
   const [file, setFile] = useState(null);
   const [fileName, setFileName] = useState('');
-  const [error, setError] = useState('');
+  const [error, setError] = useState(null);
   const [isSuccess, setIsSuccess] = useState(false);
 
   // Получаем CSRF токен при монтировании компонента
@@ -64,10 +64,10 @@ const HelpModal = ({ onClose }) => {
 
       if (response.status === 201) {
         setIsSuccess(true);
-        // Закрываем модальное окно через 2 секунды
+        // Закрываем модальное окно через 1 секунду
         setTimeout(() => {
           onClose();
-        }, 2000);
+        }, 1000);
       } else {
         setError('Произошла ошибка при отправке вопроса');
       }
