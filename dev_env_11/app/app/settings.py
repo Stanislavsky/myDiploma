@@ -32,11 +32,26 @@ INSTALLED_APPS = [
     'users',
     'main',
     'doctorProfile',
-    
+    'channels',
+    'chatDoctorAndAdmin',
 ]
 
+
+ASGI_APPLICATION = 'app.asgi.application'
+
+CHANNEL_LAYERS = {
+    'default': {
+        'BACKEND': 'channels_redis.core.RedisChannelLayer',
+        'CONFIG': {
+            "hosts": [('127.0.0.1', 6379)],
+        },
+    },
+}
+
+
 CORS_ALLOWED_ORIGINS = [
-    "http://localhost:3000",  
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
 ]
 
 CORS_ALLOW_CREDENTIALS = True
@@ -62,9 +77,15 @@ CORS_ALLOW_HEADERS = [
     'x-requested-with',
 ]
 
+CORS_EXPOSE_HEADERS = [
+    'Content-Type',
+    'X-CSRFToken',
+    'Content-Disposition',
+]
+
 CSRF_TRUSTED_ORIGINS = [
     'http://localhost:3000',
-    'http://127.0.0.1:8000',
+    'http://127.0.0.1:3000',
 ]
 
 CSRF_COOKIE_HTTPONLY = False
@@ -119,6 +140,17 @@ SESSION_COOKIE_AGE = 1209600  # 2 недели в секундах
 SESSION_COOKIE_SECURE = False  # True для HTTPS
 SESSION_COOKIE_HTTPONLY = True
 SESSION_COOKIE_SAMESITE = 'Lax'
+
+# Настройки для медиафайлов
+MEDIA_URL = '/media/'
+MEDIA_ROOT = BASE_DIR / 'doctorProfile' / 'media'
+
+# Static files (CSS, JavaScript, Images)
+STATIC_URL = '/static/'
+STATIC_ROOT = BASE_DIR / 'staticfiles'
+STATICFILES_DIRS = [
+    BASE_DIR / 'static',
+]
 
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases

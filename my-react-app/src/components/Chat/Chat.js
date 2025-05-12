@@ -1,9 +1,14 @@
 // src/components/Chat/Chat.jsx
 import React, { useState, useRef, useEffect } from 'react';
 import styles from './Chat.module.css'; // Подключаем стили
+import { FaTimes, FaPaperclip, FaCheck } from 'react-icons/fa';
+import axios from 'axios';
 
+const api = axios.create({
+  withCredentials: true
+});
 
-export default function Chat({ doctorName, openedAt, userId, onClose, onRedirect }) {
+export default function Chat({ doctorName, openedAt, userId, onClose, onRedirect, onQuestionDeleted }) {
   const [messages, setMessages] = useState([]); // Состояние для хранения сообщений
   const [message, setMessage] = useState(''); // Состояние для текущего сообщения
   const [isTaskSolved, setIsTaskSolved] = useState(false); // Состояние для отслеживания решения задачи
@@ -14,6 +19,9 @@ export default function Chat({ doctorName, openedAt, userId, onClose, onRedirect
   const [isRedirected, setIsRedirected] = useState(false); // Состояние для отслеживания перенаправления
   const fileInputRef = useRef(null); // Ссылка на скрытый input для загрузки файлов
   const messagesEndRef = useRef(null); // Ссылка на конец списка сообщений
+  const [file, setFile] = useState(null);
+  const [fileName, setFileName] = useState('');
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
 
   // Загружаем состояние перенаправления из localStorage при монтировании компонента
   useEffect(() => {
@@ -61,8 +69,7 @@ export default function Chat({ doctorName, openedAt, userId, onClose, onRedirect
   };
 
   const handleTaskSolved = () => {
-    setIsTaskSolved(true);
-    setTimeout(handleClose, 1000);
+    setShowConfirmModal(true);
   };
 
   const handleRedirect = () => {
@@ -99,6 +106,51 @@ export default function Chat({ doctorName, openedAt, userId, onClose, onRedirect
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+  };
+
+  const handleFileChange = (e) => {
+    if (e.target.files && e.target.files[0]) {
+      setFile(e.target.files[0]);
+      setFileName(e.target.files[0].name);
+    }
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    // Логика отправки сообщения
+  };
+
+  const handleConfirmSolve = async () => {
+    try {
+      // Получаем CSRF токен из cookie
+      const csrfToken = document.cookie.split('; ')
+        .find(row => row.startsWith('csrftoken='))
+        ?.split('=')[1];
+
+      await api.delete(`/api/doctor-profile/questions/${userId}/`, {
+        headers: {
+          'X-CSRFToken': csrfToken,
+          'Content-Type': 'application/json',
+        },
+        withCredentials: true
+      });
+      
+      setIsTaskSolved(true);
+      setShowConfirmModal(false);
+      
+      // Вызываем функцию для удаления вопроса из списка
+      if (onQuestionDeleted) {
+        onQuestionDeleted();
+      }
+      
+      // Закрываем чат с небольшой задержкой для анимации
+      setTimeout(() => {
+        onClose();
+      }, 1000);
+    } catch (error) {
+      console.error('Ошибка при удалении вопроса:', error);
+      alert('Не удалось удалить вопрос. Пожалуйста, попробуйте еще раз.');
+    }
   };
 
   return (
@@ -216,6 +268,30 @@ export default function Chat({ doctorName, openedAt, userId, onClose, onRedirect
           >
             Перенаправить вопрос
           </button>
+        </div>
+      )}
+
+      {/* Модальное окно подтверждения */}
+      {showConfirmModal && (
+        <div className={styles.overlay}>
+          <div className={styles.confirmModal}>
+            <h3>Подтверждение</h3>
+            <p>Вы уверены, что хотите отметить этот вопрос как решенный и удалить его?</p>
+            <div className={styles.confirmButtons}>
+              <button 
+                className={styles.confirmButton}
+                onClick={handleConfirmSolve}
+              >
+                Да, удалить
+              </button>
+              <button 
+                className={styles.cancelButton}
+                onClick={() => setShowConfirmModal(false)}
+              >
+                Отмена
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

@@ -583,39 +583,3 @@ def delete_user_on_staff_role_delete(sender, instance, **kwargs):
             User.objects.filter(id=instance.user_id).delete()
         except Exception:
             pass
-
-@receiver(post_save, sender=User)
-def create_staff_role(sender, instance, created, **kwargs):
-    if created:
-        print(f"Creating StaffRole for user {instance.username}")  # Debug print
-        
-        # Определяем роль пользователя
-        role = ''
-        if getattr(instance, 'is_doctor', False):
-            role = 'doctor'
-        elif getattr(instance, 'is_admin', False):
-            role = 'admin'
-        elif getattr(instance, 'is_support', False):
-            role = 'support'
-            
-        print(f"Selected role: {role}")  # Debug print
-        
-        # Создаем StaffRole
-        staff_role = StaffRole.objects.create(user=instance, role=role)
-        print(f"Created StaffRole: {staff_role}")  # Debug print
-        
-        # Если это врач, создаем DoctorProfile
-        if role == 'doctor':
-            print("Creating DoctorProfile...")  # Debug print
-            from doctorProfile.models import DoctorProfile
-            doctor_profile = DoctorProfile.objects.create(
-                staff_role=staff_role,
-                gender=getattr(instance, 'gender', None),
-                birth_date=getattr(instance, 'birth_date', None),
-                passport_series=getattr(instance, 'passport_series', None),
-                passport_number=getattr(instance, 'passport_number', None),
-                passport_issued_by=getattr(instance, 'passport_issued_by', None),
-                workplace=getattr(instance, 'workplace', None),
-                position=getattr(instance, 'position', None)
-            )
-            print(f"Created DoctorProfile: {doctor_profile}")  # Debug print

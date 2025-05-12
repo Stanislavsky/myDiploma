@@ -1,3 +1,4 @@
+import os
 from django.db import models
 
 from django.utils import timezone
@@ -28,12 +29,16 @@ class DoctorProfile(models.Model):
 class Question(models.Model):
     doctor_profile = models.ForeignKey(DoctorProfile, on_delete=models.CASCADE, verbose_name="Профиль врача")
     question_text = models.TextField(verbose_name="Текст вопроса")
-    passport_series = models.CharField(max_length=4, verbose_name="Серия паспорта")
-    passport_number = models.CharField(max_length=6, verbose_name="Номер паспорта")
-    workplace = models.CharField(max_length=255, verbose_name="Место работы")  # Где работает врач
-    attached_file = models.FileField(upload_to='uploads/questions/', null=True, blank=True, verbose_name="Прикрепленный файл")  # Для фото или документа
+    attached_file = models.FileField(upload_to='questions/', null=True, blank=True, verbose_name="Прикрепленный файл")
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="Дата создания вопроса")
     redirected = models.BooleanField(default=False, verbose_name="Перенаправлен")
+
+    def delete(self, *args, **kwargs):
+        # Удаляем файл с диска, если он есть
+        if self.attached_file:
+            if os.path.isfile(self.attached_file.path):
+                os.remove(self.attached_file.path)
+        super().delete(*args, **kwargs)  # удаление объекта из базы данных
 
     def __str__(self):
         return f"Вопрос от {self.doctor_profile.staff_role.user.username} (ID: {self.id})"

@@ -1,11 +1,34 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import styles from './HelpModal.module.css';
-import { FaTimes, FaPaperclip } from 'react-icons/fa';
+import { FaTimes, FaPaperclip, FaCheck } from 'react-icons/fa';
+import axios from 'axios';
+
+// Создаем экземпляр axios с базовыми настройками
+const api = axios.create({
+  withCredentials: true,
+  headers: {
+    'Content-Type': 'multipart/form-data',
+  }
+});
 
 const HelpModal = ({ onClose }) => {
   const [message, setMessage] = useState('');
   const [file, setFile] = useState(null);
   const [fileName, setFileName] = useState('');
+  const [error, setError] = useState('');
+  const [isSuccess, setIsSuccess] = useState(false);
+
+  // Получаем CSRF токен при монтировании компонента
+  useEffect(() => {
+    const getCsrfToken = async () => {
+      try {
+        await axios.get('/api/csrf-token/', { withCredentials: true });
+      } catch (error) {
+        console.error('Ошибка при получении CSRF токена:', error);
+      }
+    };
+    getCsrfToken();
+  }, []);
 
   const handleFileChange = (e) => {
     if (e.target.files && e.target.files[0]) {
@@ -14,19 +37,48 @@ const HelpModal = ({ onClose }) => {
     }
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    // Здесь будет логика отправки сообщения и файла
-    console.log('Отправка сообщения:', message);
-    console.log('Отправка файла:', file);
-    
-    // Очистка формы после отправки
-    setMessage('');
-    setFile(null);
-    setFileName('');
-    
-    // Закрытие модального окна
-    onClose();
+    setError(null);
+
+    try {
+      const formData = new FormData();
+      formData.append('question_text', message);
+
+      if (file) {
+        formData.append('attached_file', file);
+      }
+
+      // Получаем CSRF токен из cookie
+      const csrfToken = document.cookie.split('; ')
+        .find(row => row.startsWith('csrftoken='))
+        ?.split('=')[1];
+
+      const response = await axios.post('/api/doctor-profile/questions/', formData, {
+        headers: {
+          'X-CSRFToken': csrfToken,
+          'Content-Type': 'multipart/form-data',
+        },
+        withCredentials: true
+      });
+
+      if (response.status === 201) {
+        setIsSuccess(true);
+        // Закрываем модальное окно через 2 секунды
+        setTimeout(() => {
+          onClose();
+        }, 2000);
+      } else {
+        setError('Произошла ошибка при отправке вопроса');
+      }
+    } catch (error) {
+      console.error('Ошибка при отправке вопроса:', error);
+      if (error.response) {
+        setError(error.response.data.detail || 'Произошла ошибка при отправке вопроса');
+      } else {
+        setError('Произошла ошибка при отправке вопроса');
+      }
+    }
   };
 
   return (
@@ -39,45 +91,53 @@ const HelpModal = ({ onClose }) => {
           </button>
         </div>
         <div className={styles.content}>
-          <form onSubmit={handleSubmit}>
-            <div className={styles.formGroup}>
-              <label htmlFor="message" className={styles.label}>
-                Опишите вашу проблему
-              </label>
-              <textarea
-                id="message"
-                className={styles.textarea}
-                value={message}
-                onChange={(e) => setMessage(e.target.value)}
-                placeholder="Пожалуйста, подробно опишите проблему, с которой вы столкнулись..."
-                required
-              />
+          {error && <div className={styles.error}>{error}</div>}
+          {isSuccess ? (
+            <div className={styles.success}>
+              <FaCheck className={styles.successIcon} />
+              <p>Вопрос успешно отправлен! Ожидайте ответа.</p>
             </div>
-            
-            <div className={styles.fileUpload}>
-              <label htmlFor="file" className={styles.fileLabel}>
-                <FaPaperclip className={styles.fileIcon} />
-                Прикрепить файл
-              </label>
-              <input
-                type="file"
-                id="file"
-                className={styles.fileInput}
-                onChange={handleFileChange}
-              />
-              {fileName && (
-                <div className={styles.fileName}>
-                  Выбран файл: {fileName}
-                </div>
-              )}
-            </div>
-            
-            <div className={styles.formActions}>
-              <button type="submit" className={styles.submitButton}>
-                Отправить
-              </button>
-            </div>
-          </form>
+          ) : (
+            <form onSubmit={handleSubmit}>
+              <div className={styles.formGroup}>
+                <label htmlFor="message" className={styles.label}>
+                  Опишите вашу проблему
+                </label>
+                <textarea
+                  id="message"
+                  className={styles.textarea}
+                  value={message}
+                  onChange={(e) => setMessage(e.target.value)}
+                  placeholder="Пожалуйста, подробно опишите проблему, с которой вы столкнулись..."
+                  required
+                />
+              </div>
+              
+              <div className={styles.fileUpload}>
+                <label htmlFor="file" className={styles.fileLabel}>
+                  <FaPaperclip className={styles.fileIcon} />
+                  Прикрепить файл
+                </label>
+                <input
+                  type="file"
+                  id="file"
+                  className={styles.fileInput}
+                  onChange={handleFileChange}
+                />
+                {fileName && (
+                  <div className={styles.fileName}>
+                    Выбран файл: {fileName}
+                  </div>
+                )}
+              </div>
+              
+              <div className={styles.formActions}>
+                <button type="submit" className={styles.submitButton}>
+                  Отправить
+                </button>
+              </div>
+            </form>
+          )}
         </div>
       </div>
     </div>

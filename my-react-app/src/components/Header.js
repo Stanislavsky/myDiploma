@@ -63,8 +63,8 @@ const Header = () => {
             <Skeleton width="40px" height="40px" className="skeleton-avatar" />
           ) : (
             <img 
-              src="/default-avatar.png" 
-              alt="User avatar" 
+              src="/static/images/default-avatar.svg" 
+              alt="Avatar" 
               className="user-avatar"
             />
           )}
