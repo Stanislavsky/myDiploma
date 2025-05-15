@@ -131,13 +131,18 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):
 
     async def chat_message(self, event):
         try:
+            # Не отправляем сообщение обратно отправителю
+            if event['user'] == self.user.id:
+                logger.info(f"Пропуск отправки сообщения обратно отправителю {self.user.username}")
+                return
+
             message_data = {
                 'message': event['message'],
                 'user': event['user'],
                 'message_type': event['message_type'],
                 'timestamp': event['timestamp'],
                 'message_id': event['message_id'],
-                'role': event['role']  # Добавляем роль в сообщение
+                'role': event['role']
             }
             
             if 'image_url' in event:

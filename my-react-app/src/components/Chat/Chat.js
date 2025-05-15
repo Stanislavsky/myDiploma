@@ -87,25 +87,55 @@ export default function Chat({ doctorName, openedAt, userId, onClose, onRedirect
         try {
           const data = JSON.parse(event.data);
           
-          if (data.image && messages.some(msg => 
-            msg.image === data.image && 
-            msg.timestamp === new Date(data.timestamp).toISOString()
-          )) {
-            console.log('Пропуск дубликата сообщения с изображением');
+          // Если это сообщение от текущего пользователя, заменяем временное сообщение
+          if (data.user === userId) {
+            setMessages(prevMessages => {
+              return prevMessages.map(msg => {
+                // Если нашли временное сообщение с таким же текстом и временем
+                if (msg.isTemporary && 
+                    msg.text === data.message && 
+                    Math.abs(new Date(msg.timestamp) - new Date(data.timestamp)) < 5000) {
+                  // Заменяем временное сообщение на постоянное
+                  return {
+                    ...msg,
+                    message_id: data.message_id,
+                    isTemporary: false
+                  };
+                }
+                return msg;
+              });
+            });
             return;
           }
 
+          // Для сообщений от других пользователей
           const newMessage = {
             text: data.message,
             user: data.user,
-            timestamp: new Date().toISOString(),
+            timestamp: new Date(data.timestamp).toISOString(),
             image: data.image,
             role: data.role,
-            message_type: data.message_type || (data.user === userId ? 'admin_to_doctor' : 'doctor_to_admin'),
+            message_id: data.message_id,
+            message_type: data.message_type,
             sender: determineSender(data, userId)
           };
           
-          setMessages(prevMessages => [...prevMessages, newMessage]);
+          setMessages(prevMessages => {
+            // Проверяем, нет ли уже такого сообщения
+            const isDuplicate = prevMessages.some(msg => 
+              msg.message_id === newMessage.message_id ||
+              (msg.text === newMessage.text && 
+               msg.timestamp === newMessage.timestamp &&
+               msg.user === newMessage.user)
+            );
+            
+            if (isDuplicate) {
+              console.log('Сообщение уже существует в состоянии:', newMessage);
+              return prevMessages;
+            }
+            
+            return [...prevMessages, newMessage];
+          });
         } catch (error) {
           console.error('Ошибка при обработке WebSocket сообщения:', error);
         }
@@ -241,7 +271,8 @@ export default function Chat({ doctorName, openedAt, userId, onClose, onRedirect
             image: response.data.image_url,
             role: 'admin',
             message_type: 'admin_to_doctor',
-            sender: 'admin'
+            sender: 'admin',
+            isTemporary: true // Флаг для временного сообщения
           };
 
           // Немедленно добавляем сообщение в состояние
@@ -252,17 +283,33 @@ export default function Chat({ doctorName, openedAt, userId, onClose, onRedirect
             message: response.data.message,
             user: userId,
             image: response.data.image_url,
-            message_type: 'admin_to_doctor'
+            message_type: 'admin_to_doctor',
+            timestamp: tempMessage.timestamp
           };
           console.log('Отправка сообщения с изображением через WebSocket:', messageData);
           socket.send(JSON.stringify(messageData));
         }
-      } else if (message.trim() !== '') {
+      } else if (message.trim()) {
+        // Создаем временное сообщение для немедленного отображения
+        const tempMessage = {
+          text: message.trim(),
+          user: userId,
+          timestamp: new Date().toISOString(),
+          role: 'admin',
+          message_type: 'admin_to_doctor',
+          sender: 'admin',
+          isTemporary: true // Флаг для временного сообщения
+        };
+
+        // Немедленно добавляем сообщение в состояние
+        setMessages(prevMessages => [...prevMessages, tempMessage]);
+
         // Отправляем текстовое сообщение через WebSocket
         const messageData = {
           message: message.trim(),
           user: userId,
-          message_type: 'admin_to_doctor'
+          message_type: 'admin_to_doctor',
+          timestamp: tempMessage.timestamp
         };
         console.log('Отправка текстового сообщения:', messageData);
         socket.send(JSON.stringify(messageData));
