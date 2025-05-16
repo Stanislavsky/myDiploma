@@ -1,0 +1,29 @@
+.dialogContent {
+    padding: 24px;
+}
+
+.section {
+    margin-bottom: 24px;
+}
+
+.sectionTitle {
+    margin-bottom: 16px;
+    color: var(--text-primary);
+}
+
+.field {
+    margin-bottom: 16px;
+}
+
+.fieldLabel {
+    color: var(--text-secondary);
+    margin-bottom: 4px;
+}
+
+.fieldValue {
+    color: var(--text-primary);
+}
+
+.divider {
+    margin: 24px 0;
+} 

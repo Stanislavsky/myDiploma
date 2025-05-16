@@ -29,27 +29,19 @@ const api = axios.create({
     withCredentials: true,
     headers: {
         'Content-Type': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest',
     }
 });
 
-// Добавляем CSRF токен к каждому запросу
+// Добавляем перехватчик для получения CSRF токена
 api.interceptors.request.use(async (config) => {
-    try {
-        // Получаем токен из куки
-        const csrfToken = document.cookie.split('; ')
-            .find(row => row.startsWith('csrftoken='))
-            ?.split('=')[1];
-        
-        if (csrfToken) {
-            config.headers['X-CSRFToken'] = csrfToken;
-            console.log('CSRF токен добавлен к запросу:', csrfToken);
-        } else {
-            console.log('CSRF токен не найден в куки, запрашиваем новый...');
-            const newToken = await getCSRFToken();
-            config.headers['X-CSRFToken'] = newToken;
-        }
-    } catch (error) {
-        console.error('Ошибка при добавлении CSRF токена:', error);
+    // Получаем CSRF токен из cookie
+    const csrfToken = document.cookie.split('; ')
+        .find(row => row.startsWith('csrftoken='))
+        ?.split('=')[1];
+
+    if (csrfToken) {
+        config.headers['X-CSRFToken'] = csrfToken;
     }
     return config;
 });

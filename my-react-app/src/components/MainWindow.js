@@ -3,12 +3,14 @@ import './MainWindow.css';
 import HelpModal from './HelpModal/HelpModal';
 import ConfirmModal from './ConfirmModal/ConfirmModal';
 import DoctorChat from './DoctorChat/DoctorChat';
+import PatientsTable from './Patients/PatientsTable';
+import PatientForm from './Patients/PatientForm';
 import api from '../api/api';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { Link } from 'react-router-dom';
 import Skeleton from './Skeleton/Skeleton';
 
-const MainWindow = ({ title, children }) => {
+const MainWindow = ({ initialTab = 0 }) => {
   const [isHelpModalOpen, setIsHelpModalOpen] = useState(false);
   const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
   const [username, setUsername] = useState('');
@@ -16,7 +18,21 @@ const MainWindow = ({ title, children }) => {
   const [isLoading, setIsLoading] = useState(true);
   const [userId, setUserId] = useState(null);
   const [chatExists, setChatExists] = useState(false);
+  const [activeTab, setActiveTab] = useState(initialTab);
+  const [isPatientFormOpen, setIsPatientFormOpen] = useState(false);
+  const [selectedPatient, setSelectedPatient] = useState(null);
+  const [workplace, setWorkplace] = useState('');
+  const location = useLocation();
   const navigate = useNavigate();
+
+  useEffect(() => {
+    // Устанавливаем активную вкладку на основе URL
+    if (location.pathname === '/patients') {
+      setActiveTab('patients');
+    } else {
+      setActiveTab('main');
+    }
+  }, [location.pathname]);
 
   useEffect(() => {
     const fetchUser = async () => {
@@ -36,6 +52,24 @@ const MainWindow = ({ title, children }) => {
           setUsername(userData.username);
           setIsAdmin(userData.is_admin || false);
           setUserId(userData.id);
+
+          // Получаем информацию о месте работы ТОЛЬКО если пользователь врач
+          if (userData.id && userData.is_doctor && !userData.is_admin) {
+            try {
+              const doctorProfileResponse = await api.get('/api/doctor-profile/profiles/');
+              if (doctorProfileResponse.data && doctorProfileResponse.data.length > 0) {
+                const doctorProfile = doctorProfileResponse.data[0];
+                if (doctorProfile?.workplace) {
+                  setWorkplace(doctorProfile.workplace);
+                }
+              }
+            } catch (error) {
+              console.error('Error fetching doctor profile:', error);
+            }
+          } else {
+            // Если пользователь не врач или админ, очищаем поле workplace
+            setWorkplace('');
+          }
           
           // Если пользователь не админ, сразу проверяем существование чата
           if (!userData.is_admin && userData.id) {
@@ -139,64 +173,119 @@ const MainWindow = ({ title, children }) => {
     setIsLogoutModalOpen(false);
   };
 
+  const handleAddPatient = () => {
+    setSelectedPatient(null);
+    setIsPatientFormOpen(true);
+  };
+
+  const handleEditPatient = (patient) => {
+    setSelectedPatient(patient);
+    setIsPatientFormOpen(true);
+  };
+
+  const handlePatientFormClose = () => {
+    setIsPatientFormOpen(false);
+    setSelectedPatient(null);
+  };
+
+  const handlePatientSave = () => {
+    handlePatientFormClose();
+  };
+
+  const renderContent = () => {
+    if (activeTab === 'patients') {
+      return (
+        <div className="content-grid">
+          <div className="content-card">
+            <PatientsTable
+              onAddPatient={handleAddPatient}
+              onEditPatient={handleEditPatient}
+            />
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div className="content-grid">
+        <div className="content-card">
+          <h2 className="card-title">Добро пожаловать в медицинскую систему</h2>
+          <p className="card-content">
+            Выберите раздел в меню выше для начала работы с системой.
+          </p>
+        </div>
+        <div className="content-card">
+          <h2 className="card-title">Быстрый доступ</h2>
+          <div className="card-content">
+            {workplace && (
+              <div style={{ marginBottom: '15px', color: '#666' }}>
+                {workplace}
+              </div>
+            )}
+            <p style={{ marginBottom: '15px' }}>
+              Вы можете посмотреть список пациентов или добавить нового пациента
+            </p>
+            <button 
+              className="button button-primary" 
+              style={{ marginRight: '10px' }}
+              onClick={() => navigate('/patients')}
+            >
+              Список пациентов
+            </button>
+            <button 
+              className="button button-secondary"
+              onClick={handleAddPatient}
+            >
+              Добавить пациента
+            </button>
+          </div>
+        </div>
+        <div className="content-card help-card">
+          <h2 className="card-title">Возникли проблемы?</h2>
+          <p className="card-content">
+            Если у вас возникли трудности при работе с системой, нажмите кнопку "Помощь" ниже.
+            Наши специалисты готовы помочь вам в любое время.
+          </p>
+          <div className="card-footer">
+            <button className="button button-primary" onClick={openHelpModal}>
+              Помощь
+            </button>
+          </div>
+        </div>
+        {isLoading ? (
+          <div className="content-card greeting-card">
+            <Skeleton width="100%" height="24px" className="skeleton-text" />
+            <Skeleton width="80%" height="16px" className="skeleton-text" />
+            <div className="card-footer">
+              <Skeleton width="100px" height="36px" className="skeleton-button" />
+            </div>
+          </div>
+        ) : username && (
+          <div className="content-card greeting-card">
+            <h2 className="card-title">Здравствуйте, {username}!</h2>
+            <div className="card-content">
+              <p>Вы вошли в аккаунт под именем {username}</p>
+              {!isAdmin && workplace && (
+                <div style={{ marginTop: '10px', color: '#666' }}>
+                  <strong>Место работы:</strong> {workplace}
+                </div>
+              )}
+            </div>
+            <div className="card-footer">
+              <button className="button button-secondary" onClick={openLogoutModal}>
+                Выйти
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
   return (
     <div className="main-window">
       <div className="main-container">
-        {title && <h1 className="page-title">{title}</h1>}
-        {children || (
-          <div className="content-grid">
-            <div className="content-card">
-              <h2 className="card-title">Добро пожаловать в медицинскую систему</h2>
-              <p className="card-content">
-                Выберите раздел в меню выше для начала работы с системой.
-              </p>
-            </div>
-            <div className="content-card">
-              <h2 className="card-title">Быстрый доступ</h2>
-              <div className="card-content">
-                <button className="button button-primary" style={{ marginRight: '10px' }}>
-                  Список пациентов
-                </button>
-                <button className="button button-secondary">
-                  Добавить пациента
-                </button>
-              </div>
-            </div>
-            <div className="content-card help-card">
-              <h2 className="card-title">Возникли проблемы?</h2>
-              <p className="card-content">
-                Если у вас возникли трудности при работе с системой, нажмите кнопку "Помощь" ниже.
-                Наши специалисты готовы помочь вам в любое время.
-              </p>
-              <div className="card-footer">
-                <button className="button button-primary" onClick={openHelpModal}>
-                  Помощь
-                </button>
-              </div>
-            </div>
-            {isLoading ? (
-              <div className="content-card greeting-card">
-                <Skeleton width="100%" height="24px" className="skeleton-text" />
-                <Skeleton width="80%" height="16px" className="skeleton-text" />
-                <div className="card-footer">
-                  <Skeleton width="100px" height="36px" className="skeleton-button" />
-                </div>
-              </div>
-            ) : username && (
-              <div className="content-card greeting-card">
-                <h2 className="card-title">Здравствуйте, {username}!</h2>
-                <p className="card-content">
-                  Вы вошли в аккаунт под именем {username}
-                </p>
-                <div className="card-footer">
-                  <button className="button button-secondary" onClick={openLogoutModal}>
-                    Выйти
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
+        {renderContent()}
       </div>
       {isHelpModalOpen && <HelpModal onClose={handleHelpModalClose} />}
       <ConfirmModal
@@ -206,25 +295,19 @@ const MainWindow = ({ title, children }) => {
         title="Подтверждение выхода"
         message="Вы уверены, что хотите выйти из системы?"
       />
-      {console.log('Рендер MainWindow:', { 
-        isAdmin, 
-        userId, 
-        chatExists, 
-        chatExistsType: typeof chatExists,
-        shouldRenderChat: !isAdmin && userId && chatExists,
-        conditions: {
-          notAdmin: !isAdmin,
-          hasUserId: Boolean(userId),
-          chatExists: chatExists
-        }
-      })}
+      <PatientForm
+        open={isPatientFormOpen}
+        onClose={handlePatientFormClose}
+        patient={selectedPatient}
+        onSave={handlePatientSave}
+      />
       {!isAdmin && userId && chatExists && (
         <div style={{ 
           position: 'fixed', 
           bottom: '20px', 
           right: '20px', 
           zIndex: 1000,
-          display: 'block' // Явно указываем display
+          display: 'block'
         }}>
           <DoctorChat userId={userId} />
         </div>

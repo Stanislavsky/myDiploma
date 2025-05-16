@@ -45,6 +45,7 @@ urlpatterns = [
     path('api/auth/', include('users.urls')),
     path('api/main/', include('main.urls')),
     path('api/doctor-profile/', include('doctorProfile.urls')),  # маршруты для doctorProfile
+    path('api/patients/', include('patients.urls')),  # маршруты для patients
     path('api/csrf-token/', get_csrf_token, name='csrf-token'),  # маршрут для получения CSRF токена
     path('api/chat/', include('chatDoctorAndAdmin.urls')),
 ]

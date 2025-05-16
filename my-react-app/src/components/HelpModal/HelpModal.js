@@ -5,10 +5,25 @@ import axios from 'axios';
 
 // Создаем экземпляр axios с базовыми настройками
 const api = axios.create({
+  baseURL: 'http://localhost:8000',  // Add base URL for Django backend
   withCredentials: true,
   headers: {
-    'Content-Type': 'multipart/form-data',
+    'Content-Type': 'application/json',
   }
+});
+
+// Добавляем перехватчик для автоматического добавления CSRF токена
+api.interceptors.request.use(function (config) {
+  // Получаем CSRF токен из cookie
+  const csrfToken = document.cookie.split('; ')
+    .find(row => row.startsWith('csrftoken='))
+    ?.split('=')[1];
+  
+  if (csrfToken) {
+    config.headers['X-CSRFToken'] = csrfToken;
+  }
+  
+  return config;
 });
 
 const HelpModal = ({ onClose }) => {
@@ -17,12 +32,29 @@ const HelpModal = ({ onClose }) => {
   const [fileName, setFileName] = useState('');
   const [error, setError] = useState(null);
   const [isSuccess, setIsSuccess] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    // Генерируем событие открытия модального окна
+    document.dispatchEvent(new Event('modalOpen'));
+    
+    return () => {
+      // Генерируем событие закрытия модального окна
+      document.dispatchEvent(new Event('modalClose'));
+    };
+  }, []);
 
   // Получаем CSRF токен при монтировании компонента
   useEffect(() => {
     const getCsrfToken = async () => {
       try {
-        await axios.get('/api/csrf-token/', { withCredentials: true });
+        const response = await axios.get('/api/csrf-token/', { 
+          withCredentials: true,
+          headers: {
+            'Accept': 'application/json',
+          }
+        });
+        console.log('CSRF token response:', response);
       } catch (error) {
         console.error('Ошибка при получении CSRF токена:', error);
       }
@@ -39,45 +71,52 @@ const HelpModal = ({ onClose }) => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!message.trim()) {
+      setError('Пожалуйста, введите ваш вопрос');
+      return;
+    }
+
+    setIsSubmitting(true);
     setError(null);
 
     try {
-      const formData = new FormData();
-      formData.append('question_text', message);
-
-      if (file) {
-        formData.append('attached_file', file);
+      // Check authentication first
+      const authResponse = await api.get('/api/auth/check/');
+      console.log('Auth response:', authResponse.data);
+      
+      if (!authResponse.data.user || !authResponse.data.user.is_doctor) {
+        throw new Error('Пользователь не аутентифицирован как врач');
       }
 
-      // Получаем CSRF токен из cookie
-      const csrfToken = document.cookie.split('; ')
-        .find(row => row.startsWith('csrftoken='))
-        ?.split('=')[1];
+      // Send the question
+      console.log('Sending question:', { question_text: message });
+      const response = await api.post('/api/doctor-profile/questions/', 
+        { question_text: message }
+      );
+      console.log('Question response:', response.data);
 
-      const response = await axios.post('/api/doctor-profile/questions/', formData, {
-        headers: {
-          'X-CSRFToken': csrfToken,
-          'Content-Type': 'multipart/form-data',
-        },
-        withCredentials: true
-      });
-
-      if (response.status === 201) {
+      if (response.data) {
+        setMessage('');
+        setFile(null);
+        setFileName('');
         setIsSuccess(true);
-        // Закрываем модальное окно через 1 секунду
         setTimeout(() => {
           onClose();
         }, 1000);
-      } else {
-        setError('Произошла ошибка при отправке вопроса');
       }
     } catch (error) {
-      console.error('Ошибка при отправке вопроса:', error);
-      if (error.response) {
-        setError(error.response.data.detail || 'Произошла ошибка при отправке вопроса');
-      } else {
-        setError('Произошла ошибка при отправке вопроса');
-      }
+      console.error('Error submitting question:', error);
+      console.error('Error details:', {
+        message: error.message,
+        response: error.response?.data,
+        status: error.response?.status,
+        headers: error.config?.headers,
+        requestData: error.config?.data,
+        url: error.config?.url
+      });
+      setError(error.response?.data?.detail || error.response?.data?.text?.[0] || error.message);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -132,7 +171,7 @@ const HelpModal = ({ onClose }) => {
               </div>
               
               <div className={styles.formActions}>
-                <button type="submit" className={styles.submitButton}>
+                <button type="submit" className={styles.submitButton} disabled={isSubmitting}>
                   Отправить
                 </button>
               </div>

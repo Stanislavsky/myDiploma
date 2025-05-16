@@ -1,7 +1,18 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import styles from './ConfirmModal.module.css';
 
 function ConfirmModal({ isOpen, onClose, onConfirm, title, message }) {
+  useEffect(() => {
+    if (isOpen) {
+      document.dispatchEvent(new Event('modalOpen'));
+    }
+    return () => {
+      if (isOpen) {
+        document.dispatchEvent(new Event('modalClose'));
+      }
+    };
+  }, [isOpen]);
+
   if (!isOpen) return null;
 
   return (

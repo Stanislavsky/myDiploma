@@ -34,6 +34,7 @@ INSTALLED_APPS = [
     'doctorProfile',
     'channels',
     'chatDoctorAndAdmin',
+    'patients',
 ]
 
 
@@ -50,6 +51,8 @@ CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
     "http://45.82.13.46:3000",
+    "http://localhost:8000",
+    "http://127.0.0.1:8000",
 ]
 
 CORS_ALLOW_CREDENTIALS = True
@@ -85,6 +88,8 @@ CSRF_TRUSTED_ORIGINS = [
     'http://localhost:3000',
     'http://127.0.0.1:3000',
     'http://45.82.13.46:3000',
+    'http://localhost:8000',
+    'http://127.0.0.1:8000',
 ]
 
 CSRF_COOKIE_HTTPONLY = False

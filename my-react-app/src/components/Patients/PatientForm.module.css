@@ -1,0 +1,57 @@
+.dialogContent {
+    padding: 20px;
+}
+
+.formGrid {
+    margin-top: 16px;
+}
+
+.errorText {
+    color: #d32f2f;
+    font-size: 0.75rem;
+    margin-top: 4px;
+}
+
+/* Стили для полей ввода */
+.textField {
+    margin-bottom: 16px;
+}
+
+/* Стили для кнопок */
+.dialogActions {
+    padding: 16px 24px;
+    justify-content: flex-end;
+    gap: 8px;
+}
+
+/* Стили для обязательных полей */
+.requiredField label::after {
+    content: " *";
+    color: #d32f2f;
+}
+
+/* Стили для полей с ошибками */
+.errorField {
+    margin-bottom: 8px;
+}
+
+/* Стили для многострочного поля */
+.multilineField {
+    margin-top: 16px;
+}
+
+/* Анимация при фокусе */
+.textField:focus-within {
+    transform: translateY(-1px);
+    transition: transform 0.2s ease-in-out;
+}
+
+/* Стили для датапикера */
+.datePicker {
+    width: 100%;
+}
+
+/* Стили для селекта */
+.selectField {
+    min-width: 120px;
+} 

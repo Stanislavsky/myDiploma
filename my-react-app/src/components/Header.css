@@ -1,13 +1,14 @@
 .header {
-    background-color: var(--surface-color);
+    background-color: rgba(255, 255, 255, 0.9);
     box-shadow: var(--shadow-md);
     position: fixed;
     top: 0;
     left: 0;
     right: 0;
-    z-index: 1000;
-    backdrop-filter: blur(4px);
-    background-color: rgba(255, 255, 255, 0.9);
+    z-index: 100;
+    backdrop-filter: blur(8px);
+    
+    transition: all 0.3s ease;
 }
 
 .header-container {
@@ -17,6 +18,8 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
+    position: relative;
+    z-index: 101;
 }
 
 .logo {
@@ -133,7 +136,67 @@
 
 /* Добавляем класс для основного контента */
 .main-content {
-    padding-top: 80px; /* Больше чем высота хедера для красоты */
+    padding-top: 80px;
     padding-left: 20px;
     padding-right: 20px;
+}
+
+/* Добавляем стили для оверлея */
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(255, 255, 255, 0.7);
+    backdrop-filter: blur(4px);
+    z-index: 999;
+}
+
+/* Стили для активного состояния хедера при открытом модальном окне */
+.header.modal-open {
+    backdrop-filter: blur(20px);
+    background-color: rgba(255, 255, 255, 0.7);
+    box-shadow: var(--shadow-lg);
+    transition: all 0.3s ease;
+    backdrop-filter: blur(4px);
+    border-radius: 8px;
+    transition: all 0.3s ease;
+    
+    
+}
+
+.header.modal-open .header-container .nav-link .logo .user-menu {
+    
+    backdrop-filter: blur(4px);
+    border-radius: 8px;
+    transition: all 0.3s ease;
+    
+}
+
+.header.modal-open .nav-link,
+.header.modal-open .logo,
+.header.modal-open .user-menu {
+    filter: blur(2px);
+    transition: all 0.3s ease;
+    
+    border-radius: 8px;
+    transition: all 0.3s ease;
+    
+    
+}
+
+.header.modal-open::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(212, 39, 39, 0.1);
+    pointer-events: none;
+    backdrop-filter: blur(4px);
+    border-radius: 8px;
+    transition: all 0.3s ease;
+    background-color: rgba(0, 0, 0, 0.5);
 }

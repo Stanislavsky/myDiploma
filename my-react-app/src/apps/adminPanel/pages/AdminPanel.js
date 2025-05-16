@@ -1,9 +1,10 @@
-import AdminHome from './AdminHome'
+import React from 'react';
+import AdminHome from './AdminHome';
 
-
-export default function AdminPanel(){
+const AdminPanel = () => {
     return (
-        
         <AdminHome />
-    )
-}
+    );
+};
+
+export default AdminPanel;

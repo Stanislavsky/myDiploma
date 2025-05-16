@@ -1,12 +1,13 @@
-// import Dashboard from './pages/Dashboard';
-// import Profile from './pages/Profile';
+import React from 'react';
+import { Routes, Route } from 'react-router-dom';
 
-// export default function ClientApp() {
-//   return (
-//     // <Routes>
-//     //   <Route path="/" element={<Dashboard />} />
-//     //   <Route path="/profile" element={<Profile />} />
-//     // </Routes>
-//     привет
-//   );
-// }
+const Client = () => {
+  return (
+    <div>
+      <h1>Клиентский портал</h1>
+      <p>Добро пожаловать в клиентский портал</p>
+    </div>
+  );
+};
+
+export default Client;

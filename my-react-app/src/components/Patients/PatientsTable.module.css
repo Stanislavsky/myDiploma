@@ -1,0 +1,160 @@
+.container {
+    padding: 24px;
+    background-color: var(--surface-color);
+    
+}
+
+.header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 24px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.header h2 {
+    color: var(--text-primary);
+    font-size: 1.5rem;
+    font-weight: 600;
+    margin: 0;
+    
+}
+
+.addButton {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 20px;
+    border-radius: 8px;
+    font-weight: 500;
+    transition: all 0.3s ease;
+}
+
+.searchField {
+    margin-bottom: 24px;
+    background-color: var(--background-color);
+    border-radius: 8px;
+    transition: all 0.3s ease;
+}
+
+.searchIcon {
+    color: var(--text-secondary);
+    margin-right: 8px;
+}
+
+.tableContainer {
+    margin-top: 24px;
+    border-radius: 8px;
+    overflow: hidden;
+    background-color: white;
+    border: 1px solid white;
+}
+
+.tableContainer :global(.MuiPaper-root) {
+    box-shadow: none !important;
+    background-color: transparent !important;
+}
+
+.tableContainer :global(.MuiTableContainer-root) {
+    box-shadow: none !important;
+    background-color: transparent !important;
+}
+
+.noData {
+    text-align: center;
+    padding: 48px;
+    color: var(--text-secondary);
+    font-size: 1.1rem;
+    background-color: var(--background-color);
+    border-radius: 8px;
+    margin: 16px auto;
+    box-shadow: var(--shadow-md);
+    border: 1px solid var(--border-color);
+    transition: all 0.3s ease;
+    width: 100%;
+    max-width: 600px;
+    position: relative;
+    left: 50%;
+    transform: translateX(-50%);
+}
+
+/* Стили для таблицы */
+.tableContainer table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+}
+
+.tableContainer th {
+    background-color: var(--background-color);
+    color: var(--text-primary);
+    font-weight: 600;
+    text-transform: uppercase;
+    font-size: 0.875rem;
+    letter-spacing: 0.5px;
+    padding: 16px;
+    text-align: left;
+    border-bottom: 2px solid var(--border-color);
+}
+
+.tableContainer td {
+    padding: 16px;
+    color: var(--text-primary);
+    border-bottom: 1px solid var(--border-color);
+    transition: all 0.2s ease;
+}
+
+/* Стили для кнопок действий */
+.actionButton {
+    padding: 8px;
+    border-radius: 6px;
+    transition: all 0.2s ease;
+    color: var(--text-secondary);
+}
+
+.actionButton:hover {
+    background-color: var(--background-color);
+    color: var(--primary-color);
+    transform: scale(1.1);
+}
+
+/* Анимация при наведении на строки таблицы */
+.tableContainer tr {
+    transition: all 0.2s ease;
+}
+
+.tableContainer tr:hover {
+    background-color: var(--background-color);
+    transform: translateY(-1px);
+    
+}
+
+/* Стили для статусов и тегов */
+.status {
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 0.875rem;
+    font-weight: 500;
+}
+
+/* Адаптивные стили */
+@media (max-width: 768px) {
+    .container {
+        padding: 16px;
+    }
+
+    .header {
+        flex-direction: column;
+        gap: 16px;
+        align-items: stretch;
+    }
+
+    .tableContainer {
+        overflow-x: auto;
+    }
+
+    .tableContainer table {
+        min-width: 800px;
+    }
+} 

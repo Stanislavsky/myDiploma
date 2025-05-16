@@ -4,12 +4,7 @@ import Chat from '../../../components/Chat/Chat';
 import { AnimatedDiv, cardAnimation, chatAnimation } from '../../../components/Animations/Animations';
 import { FaBell } from 'react-icons/fa';
 import styles from '../AdminPanel.module.css';
-import axios from 'axios';
-
-
-const api = axios.create({
-  withCredentials: true
-});
+import api from '../../../api/api';
 
 export default function AdminHome() {
   const [openChats, setOpenChats] = useState({});

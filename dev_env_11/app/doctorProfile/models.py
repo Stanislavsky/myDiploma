@@ -1,5 +1,6 @@
 import os
 from django.db import models
+from datetime import date
 
 from django.utils import timezone
 from django.db import models
@@ -46,3 +47,41 @@ class Question(models.Model):
     class Meta:
         verbose_name = "Вопрос"
         verbose_name_plural = "Вопросы"
+
+class Patient(models.Model):
+    GENDER_CHOICES = [
+        ('male', 'Мужчина'),
+        ('female', 'Женщина')
+    ]
+
+    doctor = models.ForeignKey(DoctorProfile, on_delete=models.CASCADE, related_name='patients', verbose_name='Врач')
+    first_name = models.CharField(max_length=100, verbose_name='Имя')
+    last_name = models.CharField(max_length=100, verbose_name='Фамилия')
+    middle_name = models.CharField(max_length=100, verbose_name='Отчество', null=True, blank=True)
+    gender = models.CharField(max_length=10, choices=GENDER_CHOICES, verbose_name='Пол')
+    birth_date = models.DateField(verbose_name='Дата рождения')
+    passport_series = models.CharField(max_length=4, verbose_name='Серия паспорта')
+    passport_number = models.CharField(max_length=6, verbose_name='Номер паспорта')
+    passport_issued_by = models.CharField(max_length=100, verbose_name='Кем выдан')
+    address = models.CharField(max_length=255, verbose_name='Адрес проживания')
+    phone_number = models.CharField(max_length=15, verbose_name='Номер телефона')
+    email = models.EmailField(verbose_name='Email', null=True, blank=True)
+    medical_history = models.TextField(verbose_name='История болезни', null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='Дата добавления')
+    updated_at = models.DateTimeField(auto_now=True, verbose_name='Дата обновления')
+    age = models.IntegerField(verbose_name='Возраст', editable=False)
+
+    def save(self, *args, **kwargs):
+        if self.birth_date:
+            self.age = timezone.now().year - self.birth_date.year
+            if timezone.now().month < self.birth_date.month or (timezone.now().month == self.birth_date.month and timezone.now().day < self.birth_date.day):
+                self.age -= 1
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.last_name} {self.first_name} {self.middle_name or ''}"
+
+    class Meta:
+        verbose_name = 'Пациент'
+        verbose_name_plural = 'Пациенты'
+        ordering = ['-created_at']
