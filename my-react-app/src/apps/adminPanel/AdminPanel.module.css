@@ -118,6 +118,68 @@
   margin: 0;
 }
 
+.staffAdminButton {
+  width: 100%;
+  padding: var(--spacing-md) var(--spacing-lg);
+  margin-top: var(--spacing-md);
+  background: linear-gradient(135deg, #3565cc,var(--primary-color));
+  color: white;
+  border: none;
+  border-radius: var(--border-radius-md);
+  font-size: var(--font-size-base);
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-sm);
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  position: relative;
+  overflow: hidden;
+}
+
+.staffAdminButton::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    120deg,
+    transparent,
+    rgba(255, 255, 255, 0.2),
+    transparent
+  );
+  transition: 0.5s;
+}
+
+.staffAdminButton:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
+  background: linear-gradient(135deg, #3565cc, var(--primary-color));
+}
+
+.staffAdminButton:hover::before {
+  left: 100%;
+}
+
+.staffAdminButton:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.buttonIcon {
+  width: 20px;
+  height: 20px;
+  transition: transform 0.3s ease;
+}
+
+.staffAdminButton:hover .buttonIcon {
+  transform: scale(1.1);
+}
+
 @media (max-width: 1200px) {
   .container {
     grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));

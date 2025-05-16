@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import QuestionCard from '../../../components/QuetionCard/QuetionCard'
 import Chat from '../../../components/Chat/Chat'; 
 import { AnimatedDiv, cardAnimation, chatAnimation } from '../../../components/Animations/Animations';
-import { FaBell } from 'react-icons/fa';
+import { FaBell, FaUserPlus } from 'react-icons/fa';
 import styles from '../AdminPanel.module.css';
 import api from '../../../api/api';
 
@@ -64,6 +64,10 @@ export default function AdminHome() {
     console.log(`Перенаправить вопрос пользователю с ID: ${userId}`);
   };
 
+  const handleStaffAdminRedirect = () => {
+    window.open('http://localhost:8000/staff-admin/', '_blank');
+  };
+
   const filteredQuestions = questions.filter(question => {
     console.log('Обработка вопроса:', question);
     const doctorMatch = question.doctor?.full_name?.toLowerCase().includes(searchDoctor.toLowerCase()) || '';
@@ -113,6 +117,13 @@ export default function AdminHome() {
             <p className={styles.notificationsText}>Всего вопросов: {questions.length}</p>
           </div>
         </div>
+        <button 
+          className={styles.staffAdminButton}
+          onClick={handleStaffAdminRedirect}
+        >
+          <FaUserPlus className={styles.buttonIcon} />
+          Добавить врача или админа
+        </button>
       </div>
 
       <div className={styles.container}>
