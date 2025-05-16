@@ -209,3 +209,64 @@
     grid-template-columns: 1fr;
   }
 }
+
+.telegram-card {
+  background: linear-gradient(135deg, var(--primary-light), var(--primary-color));
+  color: white;
+}
+
+.telegram-card .card-title {
+  color: white;
+}
+
+.telegram-card .card-content {
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.telegram-card .quote {
+  display: block;
+  margin-top: 8px;
+  font-style: italic;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.telegram-card .button-primary {
+  background-color: white;
+  color: var(--primary-color);
+  border: 2px solid white;
+  transition: all 0.3s ease;
+  text-decoration: none;
+}
+
+.telegram-card .button-primary:hover {
+  background-color: transparent;
+  color: white;
+  text-decoration: none;
+}
+
+.news-card {
+  background: linear-gradient(135deg, var(--primary-light), var(--primary-color));
+  color: white;
+}
+
+.news-card .card-title {
+  color: white;
+}
+
+.news-card .card-content {
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.news-card .button-primary {
+  background-color: white;
+  color: var(--primary-color);
+  border: 2px solid white;
+  transition: all 0.3s ease;
+  text-decoration: none;
+}
+
+.news-card .button-primary:hover {
+  background-color: transparent;
+  color: white;
+  text-decoration: none;
+}

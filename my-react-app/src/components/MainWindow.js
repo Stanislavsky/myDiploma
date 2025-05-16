@@ -252,6 +252,39 @@ const MainWindow = ({ initialTab = 0 }) => {
             </button>
           </div>
         </div>
+        <div className="content-card telegram-card">
+          <h2 className="card-title">Ускорьте процесс диспансеризации</h2>
+          <p className="card-content">
+            Перешлите пациентам нашего телеграм бота для быстрого прохождения диспансеризации
+            <span className="quote">(для всеобщей диспансеризации)</span>
+          </p>
+          <div className="card-footer">
+            <a 
+              href="https://t.me/MedicalAssistantTherapistBot" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="button button-primary"
+            >
+              @MedicalAssistantTherapistBot
+            </a>
+          </div>
+        </div>
+        <div className="content-card news-card">
+          <h2 className="card-title">Новости диспансеризации</h2>
+          <p className="card-content">
+            Узнайте актуальную информацию о всеобщей диспансеризации, правилах прохождения и необходимых документах
+          </p>
+          <div className="card-footer">
+            <a 
+              href="https://krdgp3.ru/meditsinskaya-profilaktika/vseobschaya-dispanserizatsiya/?utm_source=chatgpt.com" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="button button-primary"
+            >
+              Подробнее
+            </a>
+          </div>
+        </div>
         {isLoading ? (
           <div className="content-card greeting-card">
             <Skeleton width="100%" height="24px" className="skeleton-text" />
